@@ -83,8 +83,10 @@ class Blockchain {
      * @param {*} address 
      */
     requestMessageOwnershipVerification(address) {
+        let self = this;
         return new Promise((resolve) => {
-            
+            var message =`${address}:${new Date().getTime().toString().slice(0,-3)}:starRegistry`;
+            resolve(message);
         });
     }
 
