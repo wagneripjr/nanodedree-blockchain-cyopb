@@ -128,10 +128,10 @@ class Blockchain {
       } else {
         if (bitcoinMessage.verify(message, address, signature)) {
           let data = { owner: address, star: star };
-          let block = new BlockClass.Block({ data: "Genesis Block" });
+          let block = new BlockClass.Block(data);
           resolve(this._addBlock(block));
         } else {
-          reject("Failed message verification!");
+          reject("Failed message signature verification!");
         }
       }
     });
@@ -176,7 +176,12 @@ class Blockchain {
   getStarsByWalletAddress(address) {
     let self = this;
     let stars = [];
-    return new Promise((resolve, reject) => {});
+    return new Promise((resolve, reject) => {
+        let blocks = self.chain.filter(value =>
+            value.getBData().owner == address
+        );
+      resolve(blocks.map(b => b.getBData()));
+    });
   }
 
   /**
