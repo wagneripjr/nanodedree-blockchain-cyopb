@@ -110,7 +110,21 @@ class Blockchain {
     submitStar(address, message, signature, star) {
         let self = this;
         return new Promise(async (resolve, reject) => {
-            
+            let messageTime = parseInt(message.split(':')[1]);
+            let currentTime = parseInt(new Date().getTime().toString().slice(0, -3));
+            let timeOut = (currentTime - messageTime) / 1000 > 300;
+            if(timeOut){
+                reject("Time elapsed betwenn message and submission is greater than 5 minutes!");
+            }
+            else{
+                if(bitcoinMessage.verify(message, address, signature)){
+                    let data = { owner: address, star: star};
+                    let block = new BlockClass.Block({data: 'Genesis Block'});
+                    resolve(this._addBlock(block));
+                } else {
+                    reject(Error("Failed message verification!"))
+                }
+            }
         });
     }
 
