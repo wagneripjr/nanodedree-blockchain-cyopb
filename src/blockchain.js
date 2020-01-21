@@ -11,6 +11,16 @@
 const SHA256 = require("crypto-js/sha256");
 const BlockClass = require("./block.js");
 const bitcoinMessage = require("bitcoinjs-message");
+const STAR_SUBMISSION_TIMEOUT = 60 * 5; //seconds or 5 minutes
+
+function _currentTimeInSeconds() {
+  return parseInt(
+    new Date()
+      .getTime()
+      .toString()
+      .slice(0, -3)
+  );
+}
 
 class Blockchain {
   /**
@@ -63,14 +73,18 @@ class Blockchain {
   _addBlock(block) {
     let self = this;
     return new Promise(async (resolve, reject) => {
-      block.height = self.height + 1;
-      block.previousBlockHash =
-        block.height > 0 ? self.chain[self.height].hash : null;
-      block.time = new Date().getTime();
-      block.hash = SHA256(JSON.stringify(block)).toString();
-      self.chain.push(block);
-      self.height++;
-      resolve(block);
+      try {
+        block.height = self.height + 1;
+        block.previousBlockHash =
+          block.height > 0 ? self.chain[self.height].hash : null;
+        block.time = new Date().getTime();
+        block.hash = SHA256(JSON.stringify(block)).toString();
+        self.chain.push(block);
+        self.height++;
+        resolve(block);
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 
@@ -85,11 +99,12 @@ class Blockchain {
   requestMessageOwnershipVerification(address) {
     let self = this;
     return new Promise(resolve => {
-      var message = `${address}:${new Date()
-        .getTime()
-        .toString()
-        .slice(0, -3)}:starRegistry`;
-      resolve(message);
+      if (address) {
+        var message = `${address}:${_currentTimeInSeconds()}:starRegistry`;
+        resolve(message);
+      } else {
+        reject("address must be specified!");
+      }
     });
   }
 
@@ -114,16 +129,10 @@ class Blockchain {
     let self = this;
     return new Promise(async (resolve, reject) => {
       let messageTime = parseInt(message.split(":")[1]);
-      let currentTime = parseInt(
-        new Date()
-          .getTime()
-          .toString()
-          .slice(0, -3)
-      );
-      let timeOut = (currentTime - messageTime) / 1000 > 300;
+      let timeOut = _currentTimeInSeconds() - messageTime > STAR_SUBMISSION_TIMEOUT; //
       if (timeOut) {
         reject(
-          "Time elapsed betwenn message and submission is greater than 5 minutes!"
+          "Time elapsed between message and submission is greater than 5 minutes!"
         );
       } else {
         if (bitcoinMessage.verify(message, address, signature)) {
@@ -177,9 +186,9 @@ class Blockchain {
     let self = this;
     let stars = [];
     return new Promise((resolve, reject) => {
-        let blocks = self.chain.filter(value =>
-            value.getBData().owner == address
-        );
+      let blocks = self.chain.filter(
+        value => value.getBData().owner == address
+      );
       resolve(blocks.map(b => b.getBData()));
     });
   }
@@ -195,20 +204,25 @@ class Blockchain {
     let errorLog = [];
     return new Promise(async (resolve, reject) => {
       let promises = [];
-      for(var i = 0; i < self.chain.length; i++){
+      for (var i = 0; i < self.chain.length; i++) {
         let block = self.chain[i];
-        promises.push(block.validate().then(value => { 
-          if(!value){
-            errorLog.push({height: block.height, error: "block hash invalid!"})
-          }
-        }));
-        if(block.height != 0){
-          let previousBlock = await self.getBlockByHeight(block.height-1);
+        promises.push(
+          block.validate().then(value => {
+            if (!value) {
+              errorLog.push({
+                height: block.height,
+                error: "block hash invalid!"
+              });
+            }
+          })
+        );
+        if (block.height != 0) {
+          let previousBlock = await self.getBlockByHeight(block.height - 1);
           let previousBlockHash = previousBlock.hash;
-          if(block.previousBlockHash !== previousBlockHash){ 
-            errorLog.push({height: block.height, error: "chain is broken"});
+          if (block.previousBlockHash !== previousBlockHash) {
+            errorLog.push({ height: block.height, error: "chain is broken" });
           }
-        }        
+        }
       }
       Promise.all(promises);
       resolve(errorLog);
